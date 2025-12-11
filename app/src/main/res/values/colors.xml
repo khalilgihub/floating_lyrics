@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+
+    <!-- New Color Palette -->
+    <color name="catppuccin">#CBA6F7</color>
+    <color name="green_apple">#84CC16</color>
+    <color name="lavender">#E0B0FF</color>
+    <color name="midnight_dusk">#2C3E50</color>
+    <color name="nord">#88C0D0</color>
+    <color name="strawberry_daiquiri">#EC407A</color>
+    <color name="tako">#8839EF</color>
+    <color name="teal_turquoise">#14B8A6</color>
+    <color name="tidal_wave">#38B2AC</color>
+    <color name="yin_yang">#7F7F7F</color>
+    <color name="yotsuba">#A6D785</color>
+    <color name="monochrom">#808080</color>
+</resources>

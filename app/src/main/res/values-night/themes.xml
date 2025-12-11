@@ -1,0 +1,9 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Base application theme. -->
+    <style name="Base.Theme.Floating_lyrics" parent="Theme.Material3.DayNight.NoActionBar">
+        <!-- Customize your dark theme here. -->
+        <item name="colorPrimary">@color/catppuccin</item>
+    </style>
+
+    <style name="Theme.Floating_lyrics.App" parent="Theme.Floating_lyrics" />
+</resources>

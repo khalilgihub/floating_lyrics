@@ -1,0 +1,60 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Base application theme. -->
+    <style name="Base.Theme.Floating_lyrics" parent="Theme.Material3.DayNight.NoActionBar">
+        <!-- Customize your light theme here. -->
+        <item name="colorPrimary">@color/catppuccin</item>
+    </style>
+
+    <style name="Theme.Floating_lyrics" parent="Base.Theme.Floating_lyrics" />
+
+    <style name="Theme.Floating_lyrics.App" parent="Theme.Floating_lyrics" />
+
+    <style name="Theme.Floating_lyrics.App.Catppuccin">
+        <item name="colorPrimary">@color/catppuccin</item>
+    </style>
+
+    <style name="Theme.Floating_lyrics.App.GreenApple">
+        <item name="colorPrimary">@color/green_apple</item>
+    </style>
+
+    <style name="Theme.Floating_lyrics.App.Lavender">
+        <item name="colorPrimary">@color/lavender</item>
+    </style>
+
+    <style name="Theme.Floating_lyrics.App.MidnightDusk">
+        <item name="colorPrimary">@color/midnight_dusk</item>
+    </style>
+
+    <style name="Theme.Floating_lyrics.App.Nord">
+        <item name="colorPrimary">@color/nord</item>
+    </style>
+
+    <style name="Theme.Floating_lyrics.App.StrawberryDaiquiri">
+        <item name="colorPrimary">@color/strawberry_daiquiri</item>
+    </style>
+
+    <style name="Theme.Floating_lyrics.App.Tako">
+        <item name="colorPrimary">@color/tako</item>
+    </style>
+
+    <style name="Theme.Floating_lyrics.App.TealTurquoise">
+        <item name="colorPrimary">@color/teal_turquoise</item>
+    </style>
+
+    <style name="Theme.Floating_lyrics.App.TidalWave">
+        <item name="colorPrimary">@color/tidal_wave</item>
+    </style>
+
+    <style name="Theme.Floating_lyrics.App.YinYang">
+        <item name="colorPrimary">@color/yin_yang</item>
+    </style>
+
+    <style name="Theme.Floating_lyrics.App.Yotsuba">
+        <item name="colorPrimary">@color/yotsuba</item>
+    </style>
+
+    <style name="Theme.Floating_lyrics.App.Monochrom">
+        <item name="colorPrimary">@color/monochrom</item>
+    </style>
+
+</resources>
