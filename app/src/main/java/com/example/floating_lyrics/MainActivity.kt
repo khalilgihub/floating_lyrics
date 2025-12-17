@@ -8,6 +8,7 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.text.TextUtils
+import android.util.Log
 import android.util.TypedValue
 import android.view.View
 import android.widget.Button
@@ -21,17 +22,18 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
 import com.github.dhaval2404.colorpicker.ColorPickerDialog
 import com.github.dhaval2404.colorpicker.model.ColorShape
 import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.google.android.material.card.MaterialCardView
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.android.material.switchmaterial.SwitchMaterial
+import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var preferencesManager: PreferencesManager
-    private var isFloatingLyricsServiceRunning = false
     private lateinit var seekbarLyricsOffset: SeekBar
     private lateinit var offsetValueText: TextView
 
@@ -53,6 +55,42 @@ class MainActivity : AppCompatActivity() {
 
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+
+        val btnConvert = findViewById<Button>(R.id.btnConvert)
+        val tvResult = findViewById<TextView>(R.id.tvResult)
+
+        // The lyrics you want to convert
+        val myLyrics = listOf(
+            "小部屋が孤独を甘やかす",
+            "確信できる今だけ重ねて"
+        )
+
+        btnConvert.setOnClickListener {
+            // Use Coroutines to run on background thread
+            lifecycleScope.launch {
+                try {
+                    val response = RetrofitClient.api.convertLyrics(myLyrics)
+
+                    if (response.isSuccessful && response.body() != null) {
+                        val results = response.body()!!
+
+                        // Build the display text
+                        val sb = StringBuilder()
+                        for (item in results) {
+                            sb.append("JP: ${item.original}\n")
+                            sb.append("RO: ${item.romaji}\n\n")
+                        }
+
+                        tvResult.text = sb.toString()
+                    } else {
+                        tvResult.text = "Error: ${response.code()}"
+                    }
+                } catch (e: Exception) {
+                    tvResult.text = "Failed: Is Termux running?\n${e.message}"
+                    Log.e("RomajiApp", "Error", e)
+                }
+            }
+        }
 
         val bottomNavigationView = findViewById<BottomNavigationView>(R.id.bottom_navigation)
         bottomNavigationView.setOnItemSelectedListener {
@@ -115,7 +153,16 @@ class MainActivity : AppCompatActivity() {
 
         updateColorOptionsState(switchUseAppColor.isChecked)
         updateStylingColors()
-        updateShowButton()
+
+        lifecycleScope.launch {
+            LyricsRepository.isFloatingLyricsActive.collect { isActive ->
+                if (isActive) {
+                    showButton.setImageResource(R.drawable.ic_close)
+                } else {
+                    showButton.setImageResource(R.drawable.ic_play_arrow)
+                }
+            }
+        }
 
 
         stylingHeader.setOnClickListener {
@@ -302,7 +349,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         showButton.setOnClickListener {
-            if (isFloatingLyricsServiceRunning) {
+            if (LyricsRepository.isFloatingLyricsActive.value) {
                 stopFloatingLyricsService()
             } else {
                 checkOverlayPermission()
@@ -377,15 +424,6 @@ class MainActivity : AppCompatActivity() {
         customTextColorLayout.alpha = if (isAppColorUsed) 0.5f else 1.0f
     }
 
-    private fun updateShowButton() {
-        val showButton = findViewById<FloatingActionButton>(R.id.show_button)
-        if (isFloatingLyricsServiceRunning) {
-            showButton.setImageResource(R.drawable.ic_close)
-        } else {
-            showButton.setImageResource(R.drawable.ic_play_arrow)
-        }
-    }
-
     private fun checkOverlayPermission() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
             val intent = Intent(
@@ -401,15 +439,11 @@ class MainActivity : AppCompatActivity() {
     private fun startFloatingLyricsService() {
         val intent = Intent(this, FloatingLyricsService::class.java)
         ContextCompat.startForegroundService(this, intent)
-        isFloatingLyricsServiceRunning = true
-        updateShowButton()
     }
 
     private fun stopFloatingLyricsService() {
         val intent = Intent(this, FloatingLyricsService::class.java)
         stopService(intent)
-        isFloatingLyricsServiceRunning = false
-        updateShowButton()
     }
 
     private fun checkNotificationPermission() {

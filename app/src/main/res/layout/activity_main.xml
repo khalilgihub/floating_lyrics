@@ -18,6 +18,18 @@
             android:orientation="vertical"
             android:padding="16dp">
 
+            <Button
+                android:id="@+id/btnConvert"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Convert Lyrics" />
+
+            <TextView
+                android:id="@+id/tvResult"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="" />
+
             <LinearLayout
                 android:id="@+id/play_a_song_layout"
                 android:layout_width="match_parent"
@@ -297,7 +309,7 @@
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
+                android.layout_marginTop="16dp"
                 android:orientation="vertical">
 
                 <LinearLayout

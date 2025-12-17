@@ -76,6 +76,7 @@ class FloatingLyricsService : Service(), SharedPreferences.OnSharedPreferenceCha
     @SuppressLint("SetTextI18n", "InflateParams", "ClickableViewAccessibility")
     override fun onCreate() {
         super.onCreate()
+        LyricsRepository.setFloatingLyricsActive(true)
 
         preferencesManager = PreferencesManager(this)
         preferencesManager.registerOnSharedPreferenceChangeListener(this)
@@ -383,6 +384,7 @@ class FloatingLyricsService : Service(), SharedPreferences.OnSharedPreferenceCha
 
     override fun onDestroy() {
         super.onDestroy()
+        LyricsRepository.setFloatingLyricsActive(false)
         cancelTypewriterAnimation()
         if (::floatingView.isInitialized) {
             windowManager.removeView(floatingView)
@@ -399,7 +401,7 @@ class FloatingLyricsService : Service(), SharedPreferences.OnSharedPreferenceCha
         val useAppColor = preferencesManager.getBoolean(PreferencesManager.KEY_USE_APP_COLOR, true)
         val appColor = preferencesManager.getInt(PreferencesManager.KEY_APP_COLOR, ContextCompat.getColor(this, R.color.catppuccin))
         val customBackgroundColor = preferencesManager.getInt(PreferencesManager.KEY_CUSTOM_BACKGROUND_COLOR, Color.BLACK)
-        val windowOpacity = preferencesManager.getFloat(PreferencesManager.KEY_WINDOW_OPACITY, 0f)
+        val windowOpacity = preferencesManager.getFloat(PreferencesManager.KEY_WINDOW_OPACITY, 100f)
         val fontFamily = preferencesManager.getString(PreferencesManager.KEY_FONT_FAMILY, "Roboto")
         val lyricsFontSize = preferencesManager.getFloat(PreferencesManager.KEY_LYRICS_FONT_SIZE, 20f)
         val customTextColor = preferencesManager.getInt(PreferencesManager.KEY_CUSTOM_TEXT_COLOR, Color.WHITE)
@@ -429,7 +431,7 @@ class FloatingLyricsService : Service(), SharedPreferences.OnSharedPreferenceCha
             textColor = customTextColor
         }
 
-        val alphaFraction = 1 - (windowOpacity / 100f)
+        val alphaFraction = windowOpacity / 100f
         val alpha = (alphaFraction * 255).toInt()
 
         val red = Color.red(backgroundColor)
