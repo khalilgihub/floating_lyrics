@@ -14,7 +14,6 @@ import android.view.View
 import android.widget.Button
 import android.widget.ImageView
 import android.widget.LinearLayout
-import android.widget.RelativeLayout
 import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Toast
@@ -26,8 +25,9 @@ import androidx.lifecycle.lifecycleScope
 import com.github.dhaval2404.colorpicker.ColorPickerDialog
 import com.github.dhaval2404.colorpicker.model.ColorShape
 import com.google.android.material.bottomnavigation.BottomNavigationView
+import com.google.android.material.button.MaterialButtonToggleGroup
 import com.google.android.material.card.MaterialCardView
-import com.google.android.material.floatingactionbutton.FloatingActionButton
+import com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
 import com.google.android.material.switchmaterial.SwitchMaterial
 import kotlinx.coroutines.launch
 
@@ -36,6 +36,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var preferencesManager: PreferencesManager
     private lateinit var seekbarLyricsOffset: SeekBar
     private lateinit var offsetValueText: TextView
+
+    // Animation Buttons
+    private lateinit var toggleGroupAnimation: MaterialButtonToggleGroup
 
     private val requestOverlayPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -101,6 +104,7 @@ class MainActivity : AppCompatActivity() {
                 }
                 R.id.navigation_settings -> {
                     startActivity(Intent(this, SettingsActivity::class.java))
+                    overridePendingTransition(R.anim.slide_in_right, R.anim.slide_out_left)
                     true
                 }
                 else -> false
@@ -123,12 +127,14 @@ class MainActivity : AppCompatActivity() {
         val notificationListenerCard = findViewById<MaterialCardView>(R.id.notification_listener_card)
         val windowConfigsButton = findViewById<Button>(R.id.window_configs_button)
         val switchUseAppColor = findViewById<SwitchMaterial>(R.id.switch_use_app_color)
-        val customBackgroundColorLayout = findViewById<RelativeLayout>(R.id.custom_background_color_layout)
+        val customBackgroundColorLayout = findViewById<LinearLayout>(R.id.custom_background_color_layout)
         val seekbarWindowOpacity = findViewById<SeekBar>(R.id.seekbar_window_opacity)
-        val fontFamilyLayout = findViewById<RelativeLayout>(R.id.font_family_layout)
+        val textWindowOpacityValue = findViewById<TextView>(R.id.text_window_opacity_value)
+        val fontFamilyLayout = findViewById<LinearLayout>(R.id.font_family_layout)
         val fontFamilyValue = findViewById<TextView>(R.id.font_family_value)
         val seekbarLyricsFontSize = findViewById<SeekBar>(R.id.seekbar_lyrics_font_size)
-        val customTextColorLayout = findViewById<RelativeLayout>(R.id.custom_text_color_layout)
+        val textLyricsFontSizeValue = findViewById<TextView>(R.id.text_lyrics_font_size_value)
+        val customTextColorLayout = findViewById<LinearLayout>(R.id.custom_text_color_layout)
         val switchHideMilliseconds = findViewById<SwitchMaterial>(R.id.switch_hide_milliseconds)
         val switchShowProgressBar = findViewById<SwitchMaterial>(R.id.switch_show_progress_bar)
         val switchShowNoLyricsText = findViewById<SwitchMaterial>(R.id.switch_show_no_lyrics_text)
@@ -136,13 +142,23 @@ class MainActivity : AppCompatActivity() {
         val switchEnableAnimation = findViewById<SwitchMaterial>(R.id.switch_enable_animation)
         val switchIgnoreTouch = findViewById<SwitchMaterial>(R.id.switch_ignore_touch)
         val switchTouchThrough = findViewById<SwitchMaterial>(R.id.switch_touch_through)
-        val showButton = findViewById<FloatingActionButton>(R.id.show_button)
+        val showButton = findViewById<ExtendedFloatingActionButton>(R.id.show_button)
+
+        toggleGroupAnimation = findViewById(R.id.toggle_group_animation)
 
         // Load preferences
         switchUseAppColor.isChecked = preferencesManager.getBoolean(PreferencesManager.KEY_USE_APP_COLOR, true)
-        seekbarWindowOpacity.progress = preferencesManager.getFloat(PreferencesManager.KEY_WINDOW_OPACITY, 100f).toInt()
+        
+        val opacity = preferencesManager.getFloat(PreferencesManager.KEY_WINDOW_OPACITY, 100f).toInt()
+        seekbarWindowOpacity.progress = opacity
+        textWindowOpacityValue.text = "$opacity%"
+
         fontFamilyValue.text = preferencesManager.getString(PreferencesManager.KEY_FONT_FAMILY, "Roboto")
-        seekbarLyricsFontSize.progress = preferencesManager.getFloat(PreferencesManager.KEY_LYRICS_FONT_SIZE, 20f).toInt()
+        
+        val fontSize = preferencesManager.getFloat(PreferencesManager.KEY_LYRICS_FONT_SIZE, 20f).toInt()
+        seekbarLyricsFontSize.progress = fontSize
+        textLyricsFontSizeValue.text = "$fontSize"
+
         switchHideMilliseconds.isChecked = preferencesManager.getBoolean(PreferencesManager.KEY_HIDE_MILLISECONDS, false)
         switchShowProgressBar.isChecked = preferencesManager.getBoolean(PreferencesManager.KEY_SHOW_PROGRESS_BAR, false)
         switchShowNoLyricsText.isChecked = preferencesManager.getBoolean(PreferencesManager.KEY_SHOW_NO_LYRICS_TEXT, false)
@@ -153,13 +169,17 @@ class MainActivity : AppCompatActivity() {
 
         updateColorOptionsState(switchUseAppColor.isChecked)
         updateStylingColors()
+        updateAnimationSelectionState(switchEnableAnimation.isChecked)
+        loadAnimationType()
 
         lifecycleScope.launch {
             LyricsRepository.isFloatingLyricsActive.collect { isActive ->
                 if (isActive) {
-                    showButton.setImageResource(R.drawable.ic_close)
+                    showButton.text = "Stop Lyrics"
+                    showButton.setIconResource(R.drawable.ic_close)
                 } else {
-                    showButton.setImageResource(R.drawable.ic_play_arrow)
+                    showButton.text = "Start Lyrics"
+                    showButton.setIconResource(R.drawable.ic_play_arrow)
                 }
             }
         }
@@ -249,6 +269,7 @@ class MainActivity : AppCompatActivity() {
         seekbarWindowOpacity.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 preferencesManager.saveFloat(PreferencesManager.KEY_WINDOW_OPACITY, progress.toFloat())
+                textWindowOpacityValue.text = "$progress%"
             }
 
             override fun onStartTrackingTouch(seekBar: SeekBar?) {}
@@ -271,6 +292,7 @@ class MainActivity : AppCompatActivity() {
         seekbarLyricsFontSize.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 preferencesManager.saveFloat(PreferencesManager.KEY_LYRICS_FONT_SIZE, progress.toFloat())
+                textLyricsFontSizeValue.text = "$progress"
             }
 
             override fun onStartTrackingTouch(seekBar: SeekBar?) {}
@@ -333,10 +355,16 @@ class MainActivity : AppCompatActivity() {
         // NEW: Animation with type picker
         switchEnableAnimation.setOnCheckedChangeListener { _, isChecked ->
             preferencesManager.saveBoolean(PreferencesManager.KEY_ENABLE_ANIMATION, isChecked)
+            updateAnimationSelectionState(isChecked)
+        }
 
-            // Show animation type picker when enabled
+        toggleGroupAnimation.addOnButtonCheckedListener { group, checkedId, isChecked ->
             if (isChecked) {
-                showAnimationTypePicker()
+                when (checkedId) {
+                    R.id.btn_anim_fade -> preferencesManager.saveString(PreferencesManager.KEY_ANIMATION_TYPE, PreferencesManager.ANIMATION_FADE)
+                    R.id.btn_anim_slide -> preferencesManager.saveString(PreferencesManager.KEY_ANIMATION_TYPE, PreferencesManager.ANIMATION_SLIDE)
+                    R.id.btn_anim_typewriter -> preferencesManager.saveString(PreferencesManager.KEY_ANIMATION_TYPE, PreferencesManager.ANIMATION_TYPEWRITER)
+                }
             }
         }
 
@@ -359,28 +387,27 @@ class MainActivity : AppCompatActivity() {
         checkNotificationPermission()
     }
 
-    private fun showAnimationTypePicker() {
-        val animations = arrayOf("Fade In", "Slide", "Typewriter")
-        val animationValues = arrayOf(
-            PreferencesManager.ANIMATION_FADE,
-            PreferencesManager.ANIMATION_SLIDE,
-            PreferencesManager.ANIMATION_TYPEWRITER
-        )
+    private fun updateAnimationSelectionState(isEnabled: Boolean) {
+        if (isEnabled) {
+            toggleGroupAnimation.visibility = View.VISIBLE
+        } else {
+            toggleGroupAnimation.visibility = View.GONE
+        }
+    }
 
+    private fun loadAnimationType() {
         val currentType = preferencesManager.getString(
             PreferencesManager.KEY_ANIMATION_TYPE,
             PreferencesManager.ANIMATION_FADE
         )
-        val currentIndex = animationValues.indexOf(currentType).takeIf { it >= 0 } ?: 0
 
-        AlertDialog.Builder(this)
-            .setTitle("Select Animation Type")
-            .setSingleChoiceItems(animations, currentIndex) { dialog, which ->
-                preferencesManager.saveString(PreferencesManager.KEY_ANIMATION_TYPE, animationValues[which])
-                dialog.dismiss()
-            }
-            .setNegativeButton("Cancel", null)
-            .show()
+        val id = when (currentType) {
+            PreferencesManager.ANIMATION_FADE -> R.id.btn_anim_fade
+            PreferencesManager.ANIMATION_SLIDE -> R.id.btn_anim_slide
+            PreferencesManager.ANIMATION_TYPEWRITER -> R.id.btn_anim_typewriter
+            else -> R.id.btn_anim_fade
+        }
+        toggleGroupAnimation.check(id)
     }
 
     private fun updateStylingColors() {
@@ -415,8 +442,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updateColorOptionsState(isAppColorUsed: Boolean) {
-        val customBackgroundColorLayout = findViewById<RelativeLayout>(R.id.custom_background_color_layout)
-        val customTextColorLayout = findViewById<RelativeLayout>(R.id.custom_text_color_layout)
+        val customBackgroundColorLayout = findViewById<LinearLayout>(R.id.custom_background_color_layout)
+        val customTextColorLayout = findViewById<LinearLayout>(R.id.custom_text_color_layout)
 
         customBackgroundColorLayout.isEnabled = !isAppColorUsed
         customBackgroundColorLayout.alpha = if (isAppColorUsed) 0.5f else 1.0f

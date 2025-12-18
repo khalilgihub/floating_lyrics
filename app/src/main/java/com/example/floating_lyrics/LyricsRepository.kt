@@ -11,9 +11,16 @@ import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
 import io.ktor.serialization.kotlinx.json.json
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -44,7 +51,6 @@ data class LrclibSearchResult(
     val plainLyrics: String? = null
 )
 
-// --- UPDATED REQUEST MODEL ---
 @Serializable
 data class RomajiRequest(
     val text: String,
@@ -61,8 +67,7 @@ data class RomajiResponse(val original: String, val romaji: String)
 object LyricsRepository {
 
     private const val TAG = "LyricsRepository"
-
-    // Point to your Termux Server (Localhost)
+    // Ensure this matches your Python Server IP/Port
     private const val ROMAJI_SERVER_URL = "http://localhost:8080/convert"
 
     private val _nowPlaying = MutableStateFlow<NowPlayingInfo?>(null)
@@ -76,6 +81,11 @@ object LyricsRepository {
 
     private val _isFloatingLyricsActive = MutableStateFlow(false)
     val isFloatingLyricsActive = _isFloatingLyricsActive.asStateFlow()
+
+    // Scope for managing background fetch jobs
+    private val repoScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    // Track the current active fetch job
+    private var fetchJob: Job? = null
 
     fun setFloatingLyricsActive(isActive: Boolean) {
         _isFloatingLyricsActive.value = isActive
@@ -105,8 +115,11 @@ object LyricsRepository {
 
     fun updateNowPlaying(title: String, artist: String, duration: Long) {
         val currentTrack = _nowPlaying.value
+        // Only update if something actually changed
         if (currentTrack?.title != title || currentTrack.artist != artist) {
             _nowPlaying.value = NowPlayingInfo(title, artist, duration)
+            // Trigger fetch automatically on song change
+            fetchLyrics(title, artist, duration)
         } else {
             if (currentTrack.duration != duration) {
                 _nowPlaying.value = currentTrack.copy(duration = duration)
@@ -116,120 +129,211 @@ object LyricsRepository {
 
     fun clearNowPlaying() {
         _nowPlaying.value = null
+        fetchJob?.cancel()
     }
 
-    // --- SMART CONVERSION FUNCTION ---
     suspend fun getRomajiFromCloud(japaneseText: String): String {
-        // 1. Check if text is Japanese
-        if (!japanesePattern.matcher(japaneseText).find()) {
-            return japaneseText
-        }
+        if (!containsJapanese(japaneseText)) return japaneseText
 
-        // 2. Get Current Song Info (Context for AI)
         val currentTrack = _nowPlaying.value
-        val songTitle = currentTrack?.title ?: "Unknown Song"
-        val songArtist = currentTrack?.artist ?: "Unknown Artist"
+        val songTitle = currentTrack?.title ?: "Unknown"
+        val songArtist = currentTrack?.artist ?: "Unknown"
 
         return withContext(Dispatchers.IO) {
             try {
-                // 3. Send Text + Title + Artist to Termux
                 val responseText = client.post(ROMAJI_SERVER_URL) {
                     contentType(ContentType.Application.Json)
-                    setBody(RomajiRequest(
-                        text = japaneseText,
-                        title = songTitle,
-                        artist = songArtist
-                    ))
+                    setBody(RomajiRequest(japaneseText, songTitle, songArtist))
                 }.bodyAsText()
-
                 val response = json.decodeFromString<RomajiResponse>(responseText)
                 response.romaji
-
             } catch (e: Exception) {
-                Log.e(TAG, "Termux connection failed: ${e.message}")
-                japaneseText // Fallback to original
+                Log.e(TAG, "AI Server failed: ${e.message}")
+                japaneseText
             }
         }
     }
 
-    suspend fun fetchLyricsForCurrentSong() {
+    /**
+     * OPTIMIZED: Converts lyrics in PARALLEL using async/awaitAll
+     */
+    private suspend fun convertLyricsToRomaji(original: LyricData): LyricData = withContext(Dispatchers.IO) {
+        Log.d(TAG, "Starting PARALLEL conversion for ${original.lines.size} lines...")
+
+        // 1. Launch ALL requests at once
+        val deferredLines = original.lines.map { line ->
+            async {
+                // Cancellation check
+                if (!isActive) throw kotlinx.coroutines.CancellationException()
+
+                if (line.text.isBlank()) {
+                    line
+                } else {
+                    // This network call now runs in parallel with others
+                    val romaji = getRomajiFromCloud(line.text)
+                    line.copy(text = romaji)
+                }
+            }
+        }
+
+        // 2. Wait for all of them to finish
+        val convertedLines = deferredLines.awaitAll()
+
+        Log.d(TAG, "Conversion complete.")
+        original.copy(lines = convertedLines)
+    }
+
+    fun fetchLyricsForCurrentSong() {
         val currentTrack = _nowPlaying.value ?: return
         if (currentTrack.lyrics != null && currentTrack.lyrics.lines.isNotEmpty()) return
         fetchLyrics(currentTrack.title, currentTrack.artist, currentTrack.duration)
     }
 
-    suspend fun fetchLyrics(title: String, artist: String, duration: Long = 0L) {
+    fun fetchLyrics(title: String, artist: String, duration: Long = 0L) {
         if (title.isEmpty() || artist.isEmpty()) {
             clearNowPlaying()
             return
         }
 
-        withContext(Dispatchers.IO) {
+        // Cancel previous job to prevent "Flood" from rapid song skipping
+        fetchJob?.cancel()
+
+        fetchJob = repoScope.launch {
             try {
-                Log.d(TAG, "Fetching lyrics for: $title - $artist")
-                
+                Log.d(TAG, "Starting fetch job for: $title")
                 val lyricData = fetchFromLrclibSearch(title, artist, duration)
 
-                if (lyricData != null) {
-                    _nowPlaying.value = _nowPlaying.value?.copy(lyrics = lyricData)
-                        ?: NowPlayingInfo(title, artist, duration, lyricData)
-                } else {
-                    val noLyrics = LyricData(emptyList(), "No synced lyrics found for '$title'")
-                    _nowPlaying.value = _nowPlaying.value?.copy(lyrics = noLyrics)
-                        ?: NowPlayingInfo(title, artist, duration, noLyrics)
+                if (isActive) {
+                    if (lyricData != null) {
+                        _nowPlaying.value = _nowPlaying.value?.copy(lyrics = lyricData)
+                            ?: NowPlayingInfo(title, artist, duration, lyricData)
+                    } else {
+                        val noLyrics = LyricData(emptyList(), "No synced lyrics found")
+                        _nowPlaying.value = _nowPlaying.value?.copy(lyrics = noLyrics)
+                            ?: NowPlayingInfo(title, artist, duration, noLyrics)
+                    }
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "Error fetching lyrics", e)
+                if (e !is kotlinx.coroutines.CancellationException) {
+                    Log.e(TAG, "Error fetching lyrics", e)
+                }
             }
         }
     }
 
+    private fun containsJapanese(text: String): Boolean {
+        return japanesePattern.matcher(text).find()
+    }
+
     private suspend fun fetchFromLrclibSearch(title: String, artist: String, duration: Long): LyricData? {
+        return try {
+            val isJapaneseSong = containsJapanese(title) || containsJapanese(artist)
+            val allResults = mutableSetOf<LrclibSearchResult>()
+
+            Log.d(TAG, "Searching: $title")
+            allResults.addAll(searchLrclib(title, artist))
+
+            val englishPart = extractEnglishPart(title)
+            if (englishPart != null && englishPart != title) {
+                allResults.addAll(searchLrclib(englishPart, artist))
+            }
+
+            val japanesePart = extractJapanesePart(title)
+            if (japanesePart != null && japanesePart != title) {
+                allResults.addAll(searchLrclib(japanesePart, artist))
+            }
+
+            if (allResults.isEmpty()) return null
+
+            val (romanizedResults, otherResults) = allResults.partition { isResultRomanized(it) }
+
+            val finalResults = if (isJapaneseSong) {
+                if (romanizedResults.isNotEmpty()) romanizedResults else allResults.toList()
+            } else {
+                if (romanizedResults.isNotEmpty()) romanizedResults else allResults.toList()
+            }
+
+            val bestMatch = findBestMatchByDuration(finalResults, duration) ?: return null
+            Log.d(TAG, "Best match: ${bestMatch.trackName}")
+
+            val rawLyricData = if (!bestMatch.syncedLyrics.isNullOrEmpty()) {
+                parseLrc(bestMatch.syncedLyrics)
+            } else if (!bestMatch.plainLyrics.isNullOrEmpty()) {
+                LyricData(emptyList(), bestMatch.plainLyrics)
+            } else {
+                return null
+            }
+
+            val needsConversion = isJapaneseSong && !isResultRomanized(bestMatch)
+
+            return if (needsConversion) {
+                Log.d(TAG, "Result is Japanese. Converting...")
+                convertLyricsToRomaji(rawLyricData)
+            } else {
+                rawLyricData
+            }
+
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            Log.e(TAG, "Lrclib search failed", e)
+            null
+        }
+    }
+
+    private fun extractEnglishPart(title: String): String? {
+        val separators = listOf(" - ", " / ", " (")
+        for (separator in separators) {
+            if (title.contains(separator)) {
+                val parts = title.split(separator)
+                for (part in parts) {
+                    val cleaned = part.trim().removeSuffix(")").removeSuffix("]")
+                    if (cleaned.isNotEmpty() && !containsJapanese(cleaned)) return cleaned
+                }
+            }
+        }
+        return null
+    }
+
+    private fun extractJapanesePart(title: String): String? {
+        val separators = listOf(" - ", " / ", " (")
+        for (separator in separators) {
+            if (title.contains(separator)) {
+                val parts = title.split(separator)
+                for (part in parts) {
+                    val cleaned = part.trim()
+                    if (cleaned.isNotEmpty() && containsJapanese(cleaned)) return cleaned
+                }
+            }
+        }
+        return null
+    }
+
+    private suspend fun searchLrclib(title: String, artist: String): List<LrclibSearchResult> {
         return try {
             val encodedTitle = URLEncoder.encode(title, "UTF-8")
             val encodedArtist = URLEncoder.encode(artist, "UTF-8")
             val url = "https://lrclib.net/api/search?track_name=$encodedTitle&artist_name=$encodedArtist"
             val responseText = client.get(url).bodyAsText()
-            val searchResults = json.decodeFromString<List<LrclibSearchResult>>(responseText)
-            if (searchResults.isEmpty()) return null
-
-            // Always prioritize romanized lyrics if available.
-            val (romanizedResults, otherResults) = searchResults.partition { result ->
-                val hasKeyword = result.trackName?.contains("romanized", ignoreCase = true) == true ||
-                                 result.albumName?.contains("romanized", ignoreCase = true) == true
-
-                val isContentRomanized = if (result.syncedLyrics.isNullOrEmpty()) {
-                    false
-                } else {
-                    val tagRegex = """\[[^\]]*\]""".toRegex()
-                    val lyricsOnly = tagRegex.replace(result.syncedLyrics, "")
-                    lyricsOnly.isNotBlank() && !japanesePattern.matcher(lyricsOnly).find()
-                }
-
-                hasKeyword || isContentRomanized
-            }
-
-            val finalResults = if (romanizedResults.isNotEmpty()) {
-                Log.d(TAG, "Found ${romanizedResults.size} romanized results. Prioritizing them.")
-                romanizedResults
-            } else {
-                Log.d(TAG, "No romanized results found. Using original search results.")
-                otherResults
-            }
-
-            val bestMatch = findBestMatchByDuration(finalResults, duration)
-
-            if (!bestMatch?.syncedLyrics.isNullOrEmpty()) {
-                parseLrc(bestMatch!!.syncedLyrics!!)
-            } else if (!bestMatch?.plainLyrics.isNullOrEmpty()) {
-                LyricData(emptyList(), bestMatch!!.plainLyrics!!)
-            } else {
-                null
-            }
+            json.decodeFromString<List<LrclibSearchResult>>(responseText)
         } catch (e: Exception) {
-            Log.e(TAG, "Lrclib search failed", e)
-            null
+            emptyList()
         }
+    }
+
+    private fun isResultRomanized(result: LrclibSearchResult): Boolean {
+        if (result.albumName?.contains("romanized", true) == true) return true
+        if (result.albumName?.contains("romaji", true) == true) return true
+        if (result.trackName?.contains("romanized", true) == true) return true
+        if (result.trackName?.contains("romaji", true) == true) return true
+        return checkLyricsContentIsRomanized(result)
+    }
+
+    private fun checkLyricsContentIsRomanized(result: LrclibSearchResult): Boolean {
+        val lyrics = result.syncedLyrics ?: result.plainLyrics ?: return false
+        val lyricsOnly = lyrics.replace("""\[[^\]]*\]""".toRegex(), "").trim()
+        if (lyricsOnly.isBlank()) return false
+        val sample = lyricsOnly.take(500)
+        return !japanesePattern.matcher(sample).find()
     }
 
     private fun findBestMatchByDuration(results: List<LrclibSearchResult>, duration: Long): LrclibSearchResult? {
@@ -260,7 +364,9 @@ object LyricsRepository {
                 }
             }
             lines.sortBy { it.time }
-        } catch (e: Exception) { return LyricData(emptyList(), "Error parsing lyrics") }
+        } catch (e: Exception) {
+            return LyricData(emptyList(), "Error parsing lyrics")
+        }
         return LyricData(lines, lrcText)
     }
 }

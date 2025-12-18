@@ -409,6 +409,8 @@ class FloatingLyricsService : Service(), SharedPreferences.OnSharedPreferenceCha
         val ignoreTouch = preferencesManager.getBoolean(PreferencesManager.KEY_IGNORE_TOUCH, false)
         val touchThrough = preferencesManager.getBoolean(PreferencesManager.KEY_TOUCH_THROUGH, false)
         val isShrunken = preferencesManager.getBoolean(PreferencesManager.KEY_IS_SHRUNKEN, false)
+        val isBold = preferencesManager.getBoolean(PreferencesManager.KEY_LYRICS_BOLD, false)
+        val hideMilliseconds = preferencesManager.getBoolean(PreferencesManager.KEY_HIDE_MILLISECONDS, false)
 
         applyShrunkenState(isShrunken)
 
@@ -423,7 +425,7 @@ class FloatingLyricsService : Service(), SharedPreferences.OnSharedPreferenceCha
             backgroundColor = Color.HSVToColor(hsv)
 
             Color.colorToHSV(appColor, hsv)
-            hsv[1] *= 0.5f
+            hsv[1] *= 0.2f
             hsv[2] = 1.0f
             textColor = Color.HSVToColor(hsv)
         } else {
@@ -451,15 +453,29 @@ class FloatingLyricsService : Service(), SharedPreferences.OnSharedPreferenceCha
         trackTitle.setTextColor(textColor)
         lyricsText.textSize = lyricsFontSize
         lyricsText.setTextColor(textColor)
+
+        // Force reset typeface before applying new style
+        lyricsText.typeface = Typeface.DEFAULT
+
         try {
-            lyricsText.typeface = Typeface.create(fontFamily, Typeface.NORMAL)
+            val style = if (isBold) Typeface.BOLD else Typeface.NORMAL
+            lyricsText.typeface = Typeface.create(fontFamily, style)
         } catch (e: Exception) {
-            lyricsText.typeface = Typeface.DEFAULT
+            // Fallback
+             lyricsText.setTypeface(null, if (isBold) Typeface.BOLD else Typeface.NORMAL)
         }
 
         progressBarContainer.visibility = if (showProgressBar) View.VISIBLE else View.GONE
         currentTime.setTextColor(textColor)
         totalDuration.setTextColor(textColor)
+        
+        if (hideMilliseconds) {
+            currentTime.visibility = View.GONE
+            totalDuration.visibility = View.GONE
+        } else {
+            currentTime.visibility = View.VISIBLE
+            totalDuration.visibility = View.VISIBLE
+        }
 
         if (ignoreTouch) {
             lockButton.setImageResource(R.drawable.ic_lock)
@@ -471,6 +487,12 @@ class FloatingLyricsService : Service(), SharedPreferences.OnSharedPreferenceCha
             params.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
         } else {
             params.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL.inv()
+        }
+
+        if (ignoreTouch) {
+            params.flags = params.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+        } else {
+            params.flags = params.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE.inv()
         }
 
         windowManager.updateViewLayout(floatingView, params)

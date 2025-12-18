@@ -44,6 +44,8 @@ class SettingsActivity : AppCompatActivity() {
             recreate()
         }
 
+        // Removed the lyricsBoldSwitch listener logic
+
         val colorSchemeLayout = findViewById<View>(R.id.color_scheme_layout)
         val colorSchemeView = findViewById<View>(R.id.color_scheme_view)
 
@@ -70,7 +72,8 @@ class SettingsActivity : AppCompatActivity() {
         bottomNavigationView.setOnItemSelectedListener {
             when (it.itemId) {
                 R.id.navigation_home -> {
-                    startActivity(Intent(this, MainActivity::class.java))
+                    finish()
+                    overridePendingTransition(R.anim.slide_in_left, R.anim.slide_out_right)
                     true
                 }
                 else -> false

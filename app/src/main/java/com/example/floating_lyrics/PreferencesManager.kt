@@ -65,6 +65,7 @@ class PreferencesManager(context: Context) {
         const val KEY_WINDOW_OPACITY = "window_opacity"
         const val KEY_FONT_FAMILY = "font_family"
         const val KEY_LYRICS_FONT_SIZE = "lyrics_font_size"
+        const val KEY_LYRICS_BOLD = "lyrics_bold" // New Key
         const val KEY_CUSTOM_TEXT_COLOR = "custom_text_color"
         const val KEY_SHOW_PROGRESS_BAR = "show_progress_bar"
         const val KEY_DARK_MODE = "dark_mode"

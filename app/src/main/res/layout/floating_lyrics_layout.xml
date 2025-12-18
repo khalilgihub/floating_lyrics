@@ -21,7 +21,7 @@
             android:layout_toStartOf="@+id/controls_layout"
             android:ellipsize="end"
             android:maxLines="1"
-            android:textColor="@android:color/white"
+            android:textColor="@color/md_theme_light_onSecondaryContainer"
             android:textSize="16sp"
             tools:text="My House Is Not A Home - d4vd" />
 
@@ -36,14 +36,14 @@
                 android:id="@+id/lock_button"
                 android:layout_width="24dp"
                 android:layout_height="24dp"
-                android:layout_marginEnd="8dp"
+                android:layout_marginEnd="4dp"
                 android:src="@drawable/ic_lock_open" />
 
             <ImageView
                 android:id="@+id/minimize_button"
                 android:layout_width="24dp"
                 android:layout_height="24dp"
-                android:layout_marginEnd="8dp"
+                android:layout_marginEnd="4dp"
                 android:src="@drawable/ic_minimize" />
 
             <ImageView
@@ -61,7 +61,7 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
         android:gravity="center"
-        android:textColor="@android:color/white"
+        android:textColor="@color/md_theme_light_onSecondaryContainer"
         android:textSize="20sp"
         tools:text="Tell my sister that her brother might as well have gone insane" />
 
@@ -78,7 +78,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:paddingEnd="4dp"
-            android:textColor="@android:color/white"
+            android:textColor="@color/md_theme_light_onSecondaryContainer"
             android:textSize="12sp"
             tools:text="00:41" />
 
@@ -87,14 +87,15 @@
             style="?android:attr/progressBarStyleHorizontal"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_weight="1" />
+            android:layout_weight="1"
+            android:progressTint="@color/md_theme_light_onSecondary" />
 
         <TextView
             android:id="@+id/total_duration"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:paddingStart="4dp"
-            android:textColor="@android:color/white"
+            android:textColor="@color/md_theme_light_onSecondaryContainer"
             android:textSize="12sp"
             tools:text="03:59" />
     </LinearLayout>

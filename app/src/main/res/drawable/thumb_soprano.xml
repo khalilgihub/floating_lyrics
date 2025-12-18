@@ -1,0 +1,15 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="40dp"
+    android:height="32dp"
+    android:viewportWidth="40"
+    android:viewportHeight="32">
+    <!-- Background Circle -->
+    <path
+        android:fillColor="?attr/colorPrimary"
+        android:pathData="M20,2C12.27,2 6,8.27 6,16s6.27,14 14,14 14,-6.27 14,-14S27.73,2 20,2z"/>
+
+    <!-- Soprano Clef (C-clef centered on first line) - simplified representation -->
+    <path
+        android:fillColor="?attr/colorOnPrimary"
+        android:pathData="M18,10c0,-2.21 1.79,-4 4,-4s4,1.79 4,4v12c0,2.21 -1.79,4 -4,4s-4,-1.79 -4,-4V10z M14,10h-2v12h2V10z M28,10h-2v12h2V10z"/>
+</vector>
